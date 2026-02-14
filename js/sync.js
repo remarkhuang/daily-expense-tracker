@@ -364,6 +364,7 @@ async function handleCloudDeletions() {
     console.log('[Sync] ===== 開始雲端刪除流程 =====');
     console.log('[Sync] 待刪除 ID 清單:', JSON.stringify(deletedIds));
     console.log('[Sync] 使用的 spreadsheetId:', spreadsheetId);
+    if (window.showToast) window.showToast(`開始雲端刪除 (${deletedIds.length} 筆)`, 'info');
 
     if (!spreadsheetId) {
         console.error('[Sync] spreadsheetId 為空，無法執行雲端刪除');
@@ -476,10 +477,12 @@ async function handleCloudDeletions() {
         });
         clearPendingDeletions(successIds);
         console.log(`[Sync] ✅ 成功同步刪除 ${indicesToDelete.length} 筆資料`);
+        if (window.showToast) window.showToast(`✅ 已從雲端刪除 ${indicesToDelete.length} 筆`, 'success');
 
     } catch (err) {
         console.error('[Sync] ❌ 雲端刪除程序失敗:', err.message);
         console.error('[Sync] 錯誤詳情:', err);
+        if (window.showToast) window.showToast(`❌ 雲端刪除失敗: ${err.message}`, 'error');
         // 不清除 pendingDeletions，讓下次同步時可以重試
         throw err; // 重新拋出讓上層知道
     }

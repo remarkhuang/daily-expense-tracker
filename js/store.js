@@ -45,18 +45,24 @@ export function updateEntry(id, updates) {
 }
 
 export function deleteEntry(id) {
+    console.log(`[Store] deleteEntry 被呼叫, id=${id}`);
     const entries = getAllEntries();
     const entryToDelete = entries.find(e => e.id === id);
-    if (!entryToDelete) return;
+    if (!entryToDelete) {
+        console.warn(`[Store] deleteEntry: 找不到 id=${id} 的帳目`);
+        return;
+    }
 
     // 無論同步狀態都記錄到待刪除清單
-    // 因為即使 synced=false（例如剛編輯過），雲端可能仍有舊版本
-    // handleCloudDeletions 會自動忽略雲端不存在的 ID
     addDeletedId(id);
-    console.log(`[Store] 刪除帳目 ${id}, synced=${entryToDelete.synced}, 已加入待刪除清單`);
+
+    // 驗證是否真的加入了
+    const afterAdd = getPendingDeletions();
+    console.log(`[Store] 刪除帳目 ${id}, synced=${entryToDelete.synced}, 待刪除清單長度=${afterAdd.length}, 清單=${JSON.stringify(afterAdd)}`);
 
     const filtered = entries.filter(e => e.id !== id);
     saveEntries(filtered);
+    console.log(`[Store] 本地帳目已從 ${entries.length} 筆減為 ${filtered.length} 筆`);
 }
 
 // 僅從本地移除，不記錄到待刪除清單 (用於雲端對齊)
@@ -68,9 +74,13 @@ export function removeFromLocal(id) {
 
 function addDeletedId(id) {
     const ids = getPendingDeletions();
+    console.log(`[Store] addDeletedId: id=${id}, 目前清單長度=${ids.length}`);
     if (!ids.includes(id)) {
         ids.push(id);
         localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(ids));
+        console.log(`[Store] addDeletedId: 已新增 id=${id}, 新清單長度=${ids.length}`);
+    } else {
+        console.log(`[Store] addDeletedId: id=${id} 已存在清單中，跳過`);
     }
 }
 
