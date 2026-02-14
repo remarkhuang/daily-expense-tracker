@@ -5,7 +5,7 @@
 import { getEntriesFiltered, deleteEntry, updateEntry } from './store.js';
 import { getCategoryIcon, getCategoriesByType } from './categories.js';
 import { isLoggedIn } from './auth.js';
-import { syncSingleEntry } from './sync.js';
+import { syncSingleEntry, syncToSheet } from './sync.js';
 
 let currentFilterMonth = null;
 let currentFilterType = 'all';
@@ -134,6 +134,11 @@ export function renderList() {
                 deleteEntry(btn.dataset.id);
                 window.dispatchEvent(new CustomEvent('entries-changed'));
                 window.showToast('已刪除', 'info');
+
+                // 如果已登入，嘗試同步刪除到雲端
+                if (isLoggedIn()) {
+                    syncToSheet();
+                }
             });
         });
     });

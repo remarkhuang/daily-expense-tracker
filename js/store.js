@@ -3,6 +3,7 @@
 // ============================================
 
 const ENTRIES_KEY = 'expense_tracker_entries';
+const DELETED_IDS_KEY = 'expense_tracker_deleted_ids';
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
@@ -44,9 +45,44 @@ export function updateEntry(id, updates) {
 }
 
 export function deleteEntry(id) {
-    let entries = getAllEntries();
-    entries = entries.filter(e => e.id !== id);
-    saveEntries(entries);
+    const entries = getAllEntries();
+    const entryToDelete = entries.find(e => e.id === id);
+    if (!entryToDelete) return;
+
+    // 如果是已經同步過的資料，記錄其 ID 以便後續在雲端刪除
+    if (entryToDelete.synced) {
+        addDeletedId(id);
+    }
+
+    const filtered = entries.filter(e => e.id !== id);
+    saveEntries(filtered);
+}
+
+function addDeletedId(id) {
+    const ids = getPendingDeletions();
+    if (!ids.includes(id)) {
+        ids.push(id);
+        localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(ids));
+    }
+}
+
+export function getPendingDeletions() {
+    const raw = localStorage.getItem(DELETED_IDS_KEY);
+    return raw ? JSON.parse(raw) : [];
+}
+
+export function clearPendingDeletions(idsToRemove = []) {
+    if (idsToRemove.length === 0) {
+        localStorage.removeItem(DELETED_IDS_KEY);
+    } else {
+        const current = getPendingDeletions();
+        const filtered = current.filter(id => !idsToRemove.includes(id));
+        if (filtered.length === 0) {
+            localStorage.removeItem(DELETED_IDS_KEY);
+        } else {
+            localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(filtered));
+        }
+    }
 }
 
 export function getEntriesByMonth(year, month) {

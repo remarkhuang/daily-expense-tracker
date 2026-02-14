@@ -3,7 +3,7 @@
 // ============================================
 
 import { getAccessToken, isLoggedIn } from './auth.js';
-import { getAllEntries, getUnsyncedEntries, markAsSynced, mergeEntries } from './store.js';
+import { getAllEntries, getUnsyncedEntries, markAsSynced, mergeEntries, getPendingDeletions, clearPendingDeletions } from './store.js';
 
 const SHEETS_API = 'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest';
 const SHEET_NAME = '帳目';
@@ -145,6 +145,9 @@ export async function syncToSheet() {
     try {
         await findOrCreateSpreadsheet();
 
+        // 處理待刪除的帳目 (雲端刪除)
+        await handleCloudDeletions();
+
         const unsynced = getUnsyncedEntries();
         if (unsynced.length === 0) {
             notifySyncListeners('idle', '已是最新');
@@ -265,5 +268,64 @@ export async function syncSingleEntry(entry) {
         markAsSynced([entry.id]);
     } catch (err) {
         console.error('[Sync] 單筆同步失敗:', err);
+    }
+}
+// 處理雲端同步刪除
+async function handleCloudDeletions() {
+    const deletedIds = getPendingDeletions();
+    if (deletedIds.length === 0) return;
+
+    try {
+        // 1. 先抓取雲端的 A 欄 (ID) 以確認列號
+        const result = await sheetsApi(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:A`
+        );
+        const rows = result.values || [];
+        if (rows.length === 0) return;
+
+        // 2. 找出待刪除 ID 對應的 0-indexed 列號
+        const indicesToDelete = [];
+        deletedIds.forEach(id => {
+            const rowIndex = rows.findIndex(row => row[0] === id);
+            if (rowIndex !== -1) {
+                indicesToDelete.push(rowIndex);
+            }
+        });
+
+        if (indicesToDelete.length === 0) {
+            clearPendingDeletions(deletedIds);
+            return;
+        }
+
+        // 3. 排序 (由後往前刪，以免列號偏移)
+        indicesToDelete.sort((a, b) => b - a);
+
+        // 4. 發送批次更新請求
+        const requests = indicesToDelete.map(index => ({
+            deleteDimension: {
+                range: {
+                    sheetId: 0, // 預設第一個工作表
+                    dimension: 'ROWS',
+                    startIndex: index,
+                    endIndex: index + 1
+                }
+            }
+        }));
+
+        await sheetsApi(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+            {
+                method: 'POST',
+                body: JSON.stringify({ requests })
+            }
+        );
+
+        // 5. 清除本地紀錄
+        clearPendingDeletions(deletedIds);
+        console.log(`[Sync] 雲端已同步刪除 ${indicesToDelete.length} 筆`);
+
+    } catch (err) {
+        console.error('[Sync] 雲端刪除失敗:', err);
+        // 不清除紀錄，下次同步時重試
     }
 }
