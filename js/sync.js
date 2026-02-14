@@ -271,6 +271,7 @@ export async function syncFromSheet() {
         let removedCount = 0;
 
         console.log('[Sync] 雲端現有 ID 數:', cloudIds.size);
+        console.log('[Sync] 目前連接的 Spreadsheet ID:', spreadsheetId);
         console.log('[Sync] 本地現有帳目數:', localEntries.length);
         console.log('[Sync] 待刪除 ID 數:', pendingDelIds.size);
 

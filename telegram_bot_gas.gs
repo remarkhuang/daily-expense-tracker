@@ -29,6 +29,22 @@ function doPost(e) {
       handleCommand(text, chatId, now);
       return;
     }
+
+    // 檢查是否處於編輯模式
+    const cache = CacheService.getScriptCache();
+    const editingId = cache.get('editing_' + chatId);
+
+    if (editingId) {
+      if (text === '取消' || text === 'cancel') {
+        cache.remove('editing_' + chatId);
+        sendText(chatId, "已取消編輯。");
+        return;
+      }
+      const editResult = editInSheet(editingId, text, now);
+      sendText(chatId, editResult);
+      cache.remove('editing_' + chatId); // 清除編輯狀態
+      return;
+    }
     
     // 解析文字 (格式：分類 金額 備註)
     const result = parseText(text, contents.message.message_id, now);
@@ -42,7 +58,7 @@ function doPost(e) {
     appendToSheet(result);
     
     // 回報成功訊息
-    const successMsg = `✅ 記帳成功！\n📅 日期：${result.date}\n🏷️ 分類：${result.category}\n💰 金額：$${result.amount}\n📝 內容：${result.note}\n\n🗑️ 刪除此筆：/del_${result.id}`;
+    const successMsg = `✅ 記帳成功！\n📅 日期：${result.date}\n🏷️ 分類：${result.category}\n💰 金額：$${result.amount}\n📝 內容：${result.note}\n\n✏️ 編輯：/edit_${result.id}\n🗑️ 刪除：/del_${result.id}`;
     sendText(chatId, successMsg);
     
   } catch (err) {
@@ -54,8 +70,8 @@ function doPost(e) {
 
 // 處理指令
 function handleCommand(text, chatId, now) {
-  const parts = text.split(/[\s_]+/); // 支援 /del_ID 或 /del ID
-  const cmd = parts[0].toLowerCase();
+  const params = text.split(/\s+/); // 只用空白切割
+  const cmd = params[0].toLowerCase();
 
   if (cmd === '/start' || cmd === '/help') {
     sendText(chatId, 
@@ -64,23 +80,111 @@ function handleCommand(text, chatId, now) {
       "直接輸入：`午餐 120` 或 `交通 50 加油`\n\n" +
       "📌 **指令清單**：\n" +
       "/list - 查看最近 5 筆帳目\n" +
-      "/del [ID] - 刪除指定帳目 (例: /del_tg_123)\n" +
+      "/edit [ID] - 編輯指定帳目 (輸入後Bot會提示輸入新內容)\n" +
+      "/del [ID] - 刪除指定帳目\n" +
       "/help - 顯示此說明"
     );
-  } else if (cmd === '/del' || cmd === '/delete') {
-    if (parts.length < 2) {
+  } else if (cmd.startsWith('/edit')) {
+    let idToEdit = "";
+    if (cmd.startsWith('/edit_')) {
+       idToEdit = text.substring(6).trim();
+    } else if (params.length >= 2) {
+       idToEdit = params[1].trim();
+    }
+
+    if (!idToEdit) {
+       sendText(chatId, "❌ 請指定 ID，例如：/edit_tg_12345");
+       return;
+    }
+    
+    // 設定快取，進入編輯模式 (10分鐘有效)
+    CacheService.getScriptCache().put('editing_' + chatId, idToEdit, 600);
+    sendText(chatId, `✏️ 請輸入 ID: ${idToEdit} 的新內容\n格式：『分類 金額 備註』(例如：晚餐 200)\n\n(輸入『取消』可退出編輯模式)`);
+
+  } else if (cmd.startsWith('/del')) {
+    // 支援兩種格式：
+    // 1. /del_tg_123 (點擊指令)
+    // 2. /del tg_123 (手動輸入)
+    
+    let idToDelete = "";
+    
+    if (cmd.startsWith('/del_')) {
+      // 格式：/del_tg_123
+      idToDelete = text.substring(5).trim(); // 移除 '/del_'
+    } else if (params.length >= 2) {
+      // 格式：/del tg_123
+      idToDelete = params[1].trim();
+    }
+    
+    if (!idToDelete) {
       sendText(chatId, "❌ 請指定 ID，例如：/del_tg_12345 (可從 /list 查詢)");
       return;
     }
-    const idToDelete = parts[1];
+
     const result = deleteFromSheet(idToDelete);
     sendText(chatId, result);
-  } else if (cmd === '/list') {
-    const list = getLastEntries(5);
-    sendText(chatId, list);
+    
+  } else if (cmd === '/list') { // 取消 /cancel 指令，統一在編輯模式中處理
+     const cache = CacheService.getScriptCache();
+     cache.remove('editing_' + chatId); // 如果輸入 /list 強制退出編輯模式
+     const list = getLastEntries(5);
+     sendText(chatId, list);
+  } else if (cmd === '/cancel') {
+     const cache = CacheService.getScriptCache();
+     cache.remove('editing_' + chatId);
+     sendText(chatId, "已取消所有操作。");
   } else {
     sendText(chatId, "❌ 未知指令，輸入 /help 查看說明");
   }
+}
+
+// 編輯 Sheet 中的帳目
+function editInSheet(id, newText, now) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return "❌ 找不到『" + SHEET_NAME + "』頁籤";
+
+  const targetId = String(id).trim();
+  const data = sheet.getDataRange().getValues();
+  
+  // 尋找對應的列
+  let rowIndex = -1;
+  let originalDate = null;
+
+  for (let i = data.length - 1; i >= 1; i--) {
+    const sheetId = String(data[i][0]).trim();
+    if (sheetId === targetId) {
+      rowIndex = i + 1; // 1-based
+      originalDate = data[i][1]; // 保留原始日期
+      break;
+    }
+  }
+
+  if (rowIndex === -1) return `❌ 找不到 ID 為 ${targetId} 的帳目，無法編輯。`;
+
+  // 解析新內容 (傳入 0 作為 msgId，因為我們不使用這個新的 ID)
+  const newEntry = parseText(newText, 0, now);
+  if (!newEntry) return "❌ 無法解析新內容，請檢查格式 (例如: 午餐 150)";
+
+  // 更新試算表
+  // 欄位順序：ID, 日期, 類型, 分類, 金額, 備註
+  // 我們只更新：分類(C3+1=4), 金額(C4+1=5), 備註(C5+1=6)
+  // 注意 data[i] 是 0-based，sheet.getRange 是 1-based
+  // ID=col1, Date=col2, Type=col3, Category=col4, Amount=col5, Note=col6
+  
+  // 保持原始日期 (如果原來有日期的話)
+  if (originalDate) {
+    // 寫回原始日期 (如果不變更)
+    // 但 parseText 目前會回傳今天的日期字串。
+    // 如果我們要保留 Date 物件格式，直接不更新 Date 欄位即可。
+  }
+
+  // 更新第 4, 5, 6 欄 (Category, Amount, Note)
+  sheet.getRange(rowIndex, 4).setValue(newEntry.category);
+  sheet.getRange(rowIndex, 5).setValue(newEntry.amount);
+  sheet.getRange(rowIndex, 6).setValue(newEntry.note);
+
+  return `✅ 編輯成功！\nID: ${targetId}\n新內容：${newEntry.category} $${newEntry.amount} (${newEntry.note})`;
 }
 
 // 從 Sheet 刪除
@@ -89,20 +193,18 @@ function deleteFromSheet(id) {
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) return "❌ 找不到『" + SHEET_NAME + "』頁籤";
 
+  const targetId = String(id).trim();
   const data = sheet.getDataRange().getValues();
-  // 假設第一欄是 ID (0-indexed)
-  // 如果 ID 在其他欄位，需調整 index
-  // 根據 parseText，ID 寫入時應該要對應到正確欄位。
-  // 查看 appendToSheet 實作 (假設在下方, 需確保 ID 寫入位置)
   
   // 通常第 0 欄是 ID
   for (let i = data.length - 1; i >= 1; i--) { // 從後面找回來，跳過標題
-    if (String(data[i][0]) === String(id)) {
+    const sheetId = String(data[i][0]).trim();
+    if (sheetId === targetId) {
       sheet.deleteRow(i + 1); // deleteRow 是 1-based
-      return `🗑️ 已刪除帳目 (ID: ${id})`;
+      return `🗑️ 已刪除帳目 (ID: ${targetId})`;
     }
   }
-  return `❌ 找不到 ID 為 ${id} 的帳目`;
+  return `❌ 找不到 ID 為 ${targetId} 的帳目`;
 }
 
 // 取得最近帳目
@@ -135,7 +237,7 @@ function getLastEntries(count) {
       dateStr = Utilities.formatDate(date, "GMT+8", "MM-dd");
     }
     
-    msg += `▫️ ${dateStr} ${cat} $${amt} (${note}) \n   刪除: /del_${id}\n`;
+    msg += `▫️ ${dateStr} ${cat} $${amt} (${note}) \n   ✏️ /edit_${id}  🗑️ /del_${id}\n`;
   }
   return msg;
 }
@@ -143,7 +245,37 @@ function getLastEntries(count) {
 // 解析邏輯
 function parseText(text, msgId, now) {
   const parts = text.split(/[\s,]+/);
-  // ... (保留原本邏輯)
+  if (parts.length < 1) return null;
+
+  let category = "其他";
+  let amount = 0;
+  let note = "";
+
+  if (parts.length === 1) {
+    amount = parseFloat(parts[0]);
+    note = "";
+  } else {
+    category = suggestCategory(parts[0]);
+    amount = parseFloat(parts[1]);
+    note = parts.slice(2).join(" ") || parts[0]; 
+  }
+
+  if (isNaN(amount)) return null;
+
+  const dateStr = Utilities.formatDate(now, "GMT+8", "yyyy-MM-dd");
+  const createdAt = Utilities.formatDate(now, "GMT+8", "yyyy-MM-dd HH:mm:ss");
+  const id = "tg_" + msgId;
+
+  return {
+    id: id,
+    date: dateStr,
+    type: '支出', // 統一使用中文 '支出'
+    category: category,
+    amount: amount,
+    note: note,
+    createdAt: createdAt
+  };
+}
 
 // 簡單分類建議
 function suggestCategory(note) {

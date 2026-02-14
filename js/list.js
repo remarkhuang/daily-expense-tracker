@@ -131,7 +131,9 @@ export function renderList() {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             showConfirmModal('確定要刪除這筆帳目嗎？', () => {
-                deleteEntry(btn.dataset.id);
+                const idToDelete = btn.dataset.id;
+                console.log(`[List] 使用者點擊刪除，ID: ${idToDelete}`);
+                deleteEntry(idToDelete);
                 window.dispatchEvent(new CustomEvent('entries-changed'));
                 window.showToast('已刪除', 'info');
 
