@@ -2,7 +2,7 @@
 // Service Worker — 離線快取
 // ============================================
 
-const CACHE_NAME = 'expense-tracker-v1';
+const CACHE_NAME = 'expense-tracker-v2';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
