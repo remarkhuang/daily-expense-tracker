@@ -42,97 +42,18 @@ export function initList() {
     // 監聽資料變更
     window.addEventListener('entries-changed', renderList);
 
-    renderList();
-}
-
-export function renderList() {
-    const container = document.getElementById('entries-list');
-    const summaryDiv = document.getElementById('entries-summary');
-
-    let filters = { type: currentFilterType };
-    if (currentFilterMonth) {
-        const [y, m] = currentFilterMonth.split('-').map(Number);
-        filters.year = y;
-        filters.month = m - 1;
-    }
-
-    const entries = getEntriesFiltered(filters);
-
-    if (entries.length === 0) {
-        container.innerHTML = `
-      <div class="empty-state">
-        <p>📝 尚無帳目紀錄</p>
-        <p class="sub">到「記帳」頁新增第一筆吧！</p>
-      </div>
-    `;
-        summaryDiv.innerHTML = '';
-        return;
-    }
-
-    // 統計
-    let totalIncome = 0, totalExpense = 0;
-    entries.forEach(e => {
-        if (e.type === 'income') totalIncome += e.amount;
-        else totalExpense += e.amount;
-    });
-
-    summaryDiv.innerHTML = `
-    <span class="income">收入 $${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-    <span class="expense">支出 $${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-    <span>共 ${entries.length} 筆</span>
-  `;
-
-    // 按日期分組
-    const grouped = {};
-    entries.forEach(e => {
-        if (!grouped[e.date]) grouped[e.date] = [];
-        grouped[e.date].push(e);
-    });
-
-    let html = '';
-    for (const [date, items] of Object.entries(grouped)) {
-        const d = new Date(date);
-        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-        const dateLabel = `${d.getMonth() + 1}/${d.getDate()} 星期${weekdays[d.getDay()]}`;
-
-        // 當日小計
-        let dayTotal = 0;
-        items.forEach(e => {
-            dayTotal += (e.type === 'expense' ? -1 : 1) * e.amount;
-        });
-
-        html += `<div class="date-separator">${dateLabel} <span style="float:right">${dayTotal >= 0 ? '+' : ''}$${dayTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`;
-
-        items.forEach(e => {
-            const icon = getCategoryIcon(e.category);
-            html += `
-        <div class="entry-item" data-id="${e.id}">
-          <div class="entry-icon">${icon}</div>
-          <div class="entry-info">
-            <div class="entry-category">${e.category}</div>
-            ${e.note ? `<div class="entry-note">${escapeHtml(e.note)}</div>` : ''}
-          </div>
-          <div class="entry-right">
-            <div class="entry-amount ${e.type}">${e.type === 'income' ? '+' : '-'}$${e.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          </div>
-          <div class="entry-actions">
-            <button class="btn-edit" title="編輯" data-id="${e.id}">✏️</button>
-            <button class="btn-delete" title="刪除" data-id="${e.id}">🗑️</button>
-          </div>
-        </div>
-      `;
-        });
-    }
-
-    container.innerHTML = html;
-
-    // 綁定事件
-    container.querySelectorAll('.btn-delete').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    // 使用 Event Delegation 處理列表點擊事件 (刪除/編輯)
+    const listContainer = document.getElementById('entries-list');
+    listContainer.addEventListener('click', (e) => {
+        // 刪除按鈕
+        const delBtn = e.target.closest('.btn-delete');
+        if (delBtn) {
             e.stopPropagation();
+            const idToDelete = delBtn.dataset.id;
+            console.log(`[List] 偵測到刪除點擊 (Delegation)，ID: ${idToDelete}`);
+
             showConfirmModal('確定要刪除這筆帳目嗎？', () => {
-                const idToDelete = btn.dataset.id;
-                console.log(`[List] 使用者點擊刪除，ID: ${idToDelete}`);
+                console.log(`[List] 使用者確認刪除，執行 deleteEntry ID: ${idToDelete}`);
                 deleteEntry(idToDelete);
                 window.dispatchEvent(new CustomEvent('entries-changed'));
                 window.showToast('已刪除', 'info');
@@ -147,15 +68,140 @@ export function renderList() {
                     });
                 }
             });
-        });
+            return;
+        }
+
+        // 編輯按鈕
+        const editBtn = e.target.closest('.btn-edit');
+        if (editBtn) {
+            e.stopPropagation();
+            const idToEdit = editBtn.dataset.id;
+            console.log(`[List] 偵測到編輯點擊 (Delegation)，ID: ${idToEdit}`);
+            openEditModal(idToEdit);
+        }
     });
 
-    container.querySelectorAll('.btn-edit').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openEditModal(btn.dataset.id);
-        });
+    renderList();
+}
+
+export function renderList() {
+    const container = document.getElementById('entries-list');
+    const summaryDiv = document.getElementById('entries-summary');
+
+    console.log('[List] renderList 被呼叫');
+
+    let filters = { type: currentFilterType };
+    if (currentFilterMonth) {
+        const [y, m] = currentFilterMonth.split('-').map(Number);
+        filters.year = y;
+        filters.month = m - 1;
+    }
+
+    const entries = getEntriesFiltered(filters);
+    console.log(`[List] 渲染列表，共 ${entries.length} 筆資料`);
+
+    if (entries.length === 0) {
+        container.innerHTML = '<div class="no-data">尚無帳目</div>';
+        summaryDiv.innerHTML = '';
+        return;
+    }
+
+    // 計算總計
+    let totalIncome = 0;
+    let totalExpense = 0;
+    entries.forEach(e => {
+        if (e.type === 'income') totalIncome += e.amount;
+        else totalExpense += e.amount;
     });
+
+    summaryDiv.innerHTML = `
+    <div class="summary-card expense">
+      <div class="label">總支出</div>
+      <div class="amount">$${totalExpense.toLocaleString()}</div>
+    </div>
+    <div class="summary-card income">
+      <div class="label">總收入</div>
+      <div class="amount">$${totalIncome.toLocaleString()}</div>
+    </div>
+    <div class="summary-card balance">
+      <div class="label">結餘</div>
+      <div class="amount" style="color: ${totalIncome - totalExpense >= 0 ? '#4caf50' : '#ff5252'}">
+        $${(totalIncome - totalExpense).toLocaleString()}
+      </div>
+    </div>
+  `;
+
+    let html = '';
+    let currentDate = '';
+    let dayTotal = 0;
+    let items = [];
+
+    // 分組邏輯
+    entries.forEach((entry, index) => {
+        if (entry.date !== currentDate) {
+            // 輸出上一組
+            if (items.length > 0) {
+                const d = new Date(currentDate);
+                const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+                const dateLabel = `${d.getMonth() + 1}/${d.getDate()} 星期${weekdays[d.getDay()]}`;
+                html += `<div class="date-separator">${dateLabel} <span style="float:right">${dayTotal >= 0 ? '+' : ''}$${dayTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>`;
+                items.forEach(e => {
+                    const icon = getCategoryIcon(e.category);
+                    html += `
+            <div class="entry-item" data-id="${e.id}">
+              <div class="entry-icon">${icon}</div>
+              <div class="entry-info">
+                <div class="entry-category">${e.category}</div>
+                ${e.note ? `<div class="entry-note">${escapeHtml(e.note)}</div>` : ''}
+              </div>
+              <div class="entry-right">
+                <div class="entry-amount ${e.type}">${e.type === 'income' ? '+' : '-'}$${e.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div class="entry-actions">
+                <button class="btn-edit" title="編輯" data-id="${e.id}">✏️</button>
+                <button class="btn-delete" title="刪除" data-id="${e.id}">🗑️</button>
+              </div>
+            </div>`;
+                });
+            }
+            currentDate = entry.date;
+            dayTotal = 0;
+            items = [];
+        }
+
+        const sign = entry.type === 'expense' ? -1 : 1;
+        dayTotal += entry.amount * sign;
+        items.push(entry);
+    });
+
+    // 輸出最後一組
+    if (items.length > 0) {
+        const d = new Date(currentDate);
+        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+        const dateLabel = `${d.getMonth() + 1}/${d.getDate()} 星期${weekdays[d.getDay()]}`;
+        html += `<div class="date-separator">${dateLabel} <span style="float:right">${dayTotal >= 0 ? '+' : ''}$${dayTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>`;
+        items.forEach(e => {
+            const icon = getCategoryIcon(e.category);
+            html += `
+            <div class="entry-item" data-id="${e.id}">
+              <div class="entry-icon">${icon}</div>
+              <div class="entry-info">
+                <div class="entry-category">${e.category}</div>
+                ${e.note ? `<div class="entry-note">${escapeHtml(e.note)}</div>` : ''}
+              </div>
+              <div class="entry-right">
+                <div class="entry-amount ${e.type}">${e.type === 'income' ? '+' : '-'}$${e.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div class="entry-actions">
+                <button class="btn-edit" title="編輯" data-id="${e.id}">✏️</button>
+                <button class="btn-delete" title="刪除" data-id="${e.id}">🗑️</button>
+              </div>
+            </div>`;
+        });
+    }
+
+    container.innerHTML = html;
+    // 移除舊的個別事件綁定，改用 initList 中的 delegation
 }
 
 function escapeHtml(text) {
