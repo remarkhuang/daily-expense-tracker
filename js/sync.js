@@ -282,36 +282,50 @@ async function handleCloudDeletions() {
     const deletedIds = getPendingDeletions();
     if (deletedIds.length === 0) return;
 
+    console.log('[Sync] 檢查待刪除項:', deletedIds);
+
     try {
-        // 1. 先抓取雲端的 A 欄 (ID) 以確認列號
+        // 1. 取得試算表資訊以獲取正確的頁籤 ID (sheetId)
+        const ssInfo = await sheetsApi(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`);
+        const targetSheet = ssInfo.sheets.find(s => s.properties.title === SHEET_NAME) || ssInfo.sheets[0];
+        const realSheetId = targetSheet.properties.sheetId;
+
+        // 2. 抓取雲端的 A 欄 (ID) 以確認列號
         const result = await sheetsApi(
             `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:A`
         );
         const rows = result.values || [];
-        if (rows.length === 0) return;
+        if (rows.length === 0) {
+            console.warn('[Sync] 雲端無內容，無法比對刪除');
+            return;
+        }
 
-        // 2. 找出待刪除 ID 對應的 0-indexed 列號
+        // 3. 找出待刪除 ID 對應的 0-indexed 列號
         const indicesToDelete = [];
         deletedIds.forEach(id => {
             const rowIndex = rows.findIndex(row => row[0] === id);
             if (rowIndex !== -1) {
                 indicesToDelete.push(rowIndex);
+            } else {
+                console.log(`[Sync] ID ${id} 在雲端未找到，可能已刪除`);
             }
         });
 
         if (indicesToDelete.length === 0) {
+            console.log('[Sync] 無需在雲端執行的刪除動作');
             clearPendingDeletions(deletedIds);
             return;
         }
 
-        // 3. 排序 (由後往前刪，以免列號偏移)
+        // 4. 排序 (由後往前刪，以免列號偏移)
         indicesToDelete.sort((a, b) => b - a);
+        console.log('[Sync] 即將刪除的列號:', indicesToDelete);
 
-        // 4. 發送批次更新請求
+        // 5. 發送批次更新請求
         const requests = indicesToDelete.map(index => ({
             deleteDimension: {
                 range: {
-                    sheetId: 0, // 預設第一個工作表
+                    sheetId: realSheetId,
                     dimension: 'ROWS',
                     startIndex: index,
                     endIndex: index + 1
@@ -327,12 +341,11 @@ async function handleCloudDeletions() {
             }
         );
 
-        // 5. 清除本地紀錄
+        // 6. 清除本地紀錄
         clearPendingDeletions(deletedIds);
-        console.log(`[Sync] 雲端已同步刪除 ${indicesToDelete.length} 筆`);
+        console.log(`[Sync] 成功同步刪除 ${indicesToDelete.length} 筆資料`);
 
     } catch (err) {
-        console.error('[Sync] 雲端刪除失敗:', err);
-        // 不清除紀錄，下次同步時重試
+        console.error('[Sync] 雲端刪除程序失敗:', err);
     }
 }
