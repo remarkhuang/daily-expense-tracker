@@ -53,10 +53,10 @@ function parseText(text) {
   return {
     id: id,
     date: dateStr,
-    type: '支出', // Telegram 預設設為支出
+    type: '支出', // 必須使用中文 '支出' 或 '收入'
     category: category,
     amount: amount,
-    note: note,
+    note: note + " (來自 Telegram)",
     createdAt: createdAt
   };
 }
@@ -90,15 +90,16 @@ function appendToSheet(entry) {
     sheet.appendRow(['ID', '日期', '類型', '分類', '金額', '備註', '建立時間']);
   }
 
-  // 按照 PWA 的欄位順序寫入: ID, 日期, 類型, 分類, 金額, 備註, 建立時間
+  // 嚴格遵循 PWA 格式：
+  // [0]ID, [1]日期, [2]類型, [3]分類, [4]金額, [5]備註, [6]建立時間
   sheet.appendRow([
-    entry.id,
-    entry.date,
-    entry.type,
-    entry.category,
-    entry.amount,
-    entry.note,
-    entry.createdAt
+    entry.id,         // A 欄
+    entry.date,       // B 欄
+    entry.type,       // C 欄
+    entry.category,   // D 欄
+    entry.amount,     // E 欄
+    entry.note,       // F 欄
+    entry.createdAt   // G 欄
   ]);
 }
 
