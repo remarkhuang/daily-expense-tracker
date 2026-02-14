@@ -34,6 +34,7 @@ export function getUserInfo() {
 export function initAuth() {
     if (!CLIENT_ID) {
         console.warn('[Auth] 請在 auth.js 中填入 Google OAuth Client ID');
+        notifyListeners(); // 即使沒設定也通知，讓 UI 進入未登入狀態
         return;
     }
 
@@ -47,9 +48,20 @@ export function initAuth() {
                 return;
             }
             accessToken = response.access_token;
+            // 儲存 token 到本地 (選用，GIS token 通常短效，但在同一 session 內有用)
+            localStorage.setItem('google_access_token', accessToken);
             fetchUserInfo();
         },
     });
+
+    // 檢查是否有快取的 token (僅限本次 session 使用)
+    const cachedToken = localStorage.getItem('google_access_token');
+    if (cachedToken) {
+        accessToken = cachedToken;
+        fetchUserInfo();
+    } else {
+        notifyListeners();
+    }
 }
 
 export function login() {
@@ -63,6 +75,7 @@ export function login() {
 }
 
 export function logout() {
+    localStorage.removeItem('google_access_token');
     if (accessToken) {
         // eslint-disable-next-line no-undef
         google.accounts.oauth2.revoke(accessToken, () => {
@@ -70,6 +83,10 @@ export function logout() {
             userInfo = null;
             notifyListeners();
         });
+    } else {
+        accessToken = null;
+        userInfo = null;
+        notifyListeners();
     }
 }
 
