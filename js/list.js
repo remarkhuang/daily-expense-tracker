@@ -77,8 +77,8 @@ export function renderList() {
     });
 
     summaryDiv.innerHTML = `
-    <span class="income">收入 $${totalIncome.toLocaleString()}</span>
-    <span class="expense">支出 $${totalExpense.toLocaleString()}</span>
+    <span class="income">收入 $${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+    <span class="expense">支出 $${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
     <span>共 ${entries.length} 筆</span>
   `;
 
@@ -101,7 +101,7 @@ export function renderList() {
             dayTotal += (e.type === 'expense' ? -1 : 1) * e.amount;
         });
 
-        html += `<div class="date-separator">${dateLabel} <span style="float:right">${dayTotal >= 0 ? '+' : ''}$${dayTotal.toLocaleString()}</span></div>`;
+        html += `<div class="date-separator">${dateLabel} <span style="float:right">${dayTotal >= 0 ? '+' : ''}$${dayTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`;
 
         items.forEach(e => {
             const icon = getCategoryIcon(e.category);
@@ -113,7 +113,7 @@ export function renderList() {
             ${e.note ? `<div class="entry-note">${escapeHtml(e.note)}</div>` : ''}
           </div>
           <div class="entry-right">
-            <div class="entry-amount ${e.type}">${e.type === 'income' ? '+' : '-'}$${e.amount.toLocaleString()}</div>
+            <div class="entry-amount ${e.type}">${e.type === 'income' ? '+' : '-'}$${e.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
           <div class="entry-actions">
             <button class="btn-edit" title="編輯" data-id="${e.id}">✏️</button>

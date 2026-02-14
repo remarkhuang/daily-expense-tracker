@@ -19,7 +19,7 @@ export function initBudget() {
         const val = Number(input.value);
         if (val >= 0) {
             setBudget(val);
-            window.showToast(val > 0 ? `月度預算已設為 $${val.toLocaleString()}` : '已取消月度預算', 'success');
+            window.showToast(val > 0 ? `月度預算已設為 $${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '已取消月度預算', 'success');
             checkBudget();
         }
     });
@@ -49,11 +49,11 @@ export function checkBudget() {
     if (summary.expense > budget) {
         alertDiv.style.display = 'flex';
         alertDiv.querySelector('span').textContent =
-            `⚠️ 本月支出 $${summary.expense.toLocaleString()} 已超過預算 $${budget.toLocaleString()}！`;
+            `⚠️ 本月支出 $${summary.expense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 已超過預算 $${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}！`;
     } else if (summary.expense > budget * 0.8) {
         alertDiv.style.display = 'flex';
         alertDiv.querySelector('span').textContent =
-            `⚡ 本月支出已達預算 ${((summary.expense / budget) * 100).toFixed(0)}%（$${summary.expense.toLocaleString()} / $${budget.toLocaleString()}）`;
+            `⚡ 本月支出已達預算 ${((summary.expense / budget) * 100).toFixed(0)}%（$${summary.expense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / $${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}）`;
     } else {
         alertDiv.style.display = 'none';
     }

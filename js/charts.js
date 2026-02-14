@@ -54,10 +54,10 @@ function updateMonthLabel() {
 
 function renderSummaryCards() {
     const summary = getMonthSummary(chartYear, chartMonth);
-    document.getElementById('summary-income').textContent = `$${summary.income.toLocaleString()}`;
-    document.getElementById('summary-expense').textContent = `$${summary.expense.toLocaleString()}`;
+    document.getElementById('summary-income').textContent = `$${summary.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('summary-expense').textContent = `$${summary.expense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const balanceEl = document.getElementById('summary-balance');
-    balanceEl.textContent = `${summary.balance >= 0 ? '+' : ''}$${summary.balance.toLocaleString()}`;
+    balanceEl.textContent = `${summary.balance >= 0 ? '+' : ''}$${summary.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     balanceEl.style.color = summary.balance >= 0 ? 'var(--income-color)' : 'var(--expense-color)';
 }
 
@@ -126,7 +126,7 @@ function renderDoughnut() {
                         label: (ctx) => {
                             const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
                             const pct = ((ctx.parsed / total) * 100).toFixed(1);
-                            return ` $${ctx.parsed.toLocaleString()} (${pct}%)`;
+                            return ` $${ctx.parsed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pct}%)`;
                         },
                     },
                 },
@@ -188,7 +188,7 @@ function renderLine() {
                     ticks: {
                         color: '#6b6b8a',
                         font: { size: 10 },
-                        callback: (v) => `$${v.toLocaleString()}`,
+                        callback: (v) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     },
                     grid: { color: 'rgba(255,255,255,0.05)' },
                     beginAtZero: true,
@@ -198,7 +198,7 @@ function renderLine() {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `支出: $${ctx.parsed.y.toLocaleString()}`,
+                        label: (ctx) => `支出: $${ctx.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     },
                 },
             },
@@ -277,7 +277,7 @@ function renderBar() {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`,
+                        label: (ctx) => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     },
                 },
             },
