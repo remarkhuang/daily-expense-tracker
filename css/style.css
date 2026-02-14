@@ -130,6 +130,12 @@ button {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
+/* ---------- Layout Containers ---------- */
+#app-container {
+  display: none;
+  /* 預設隱藏，由 JS 驗證後開啟 */
+}
+
 /* ---------- Login Wall ---------- */
 .login-wall {
   position: fixed;
@@ -137,9 +143,10 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10001;
+  /* 確保在最上層 */
   padding: 20px;
-  background: radial-gradient(circle at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  background: radial-gradient(circle at center, #1b1b3a 0%, var(--bg-primary) 100%);
 }
 
 .login-content {

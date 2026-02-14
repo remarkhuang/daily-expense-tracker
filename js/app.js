@@ -67,60 +67,56 @@ function initAuthUI() {
     const syncStatusText = document.getElementById('sync-status-text');
     const sheetUrlDiv = document.getElementById('setting-sheet-url');
     const sheetLink = document.getElementById('sheet-link');
-
     const loginBtnWall = document.getElementById('btn-login-wall');
 
-    loginBtn.addEventListener('click', () => {
-        if (isLoggedIn()) {
-            logout();
-        } else {
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+            if (isLoggedIn()) logout(); else login();
+        });
+    }
+
+    if (loginBtnWall) {
+        loginBtnWall.addEventListener('click', () => {
             login();
-        }
-    });
+        });
+    }
 
-    loginBtnWall.addEventListener('click', () => {
-        login();
-    });
+    if (settingsLoginBtn) {
+        settingsLoginBtn.addEventListener('click', () => {
+            if (isLoggedIn()) logout(); else login();
+        });
+    }
 
-    settingsLoginBtn.addEventListener('click', () => {
-        if (isLoggedIn()) {
-            logout();
-        } else {
-            login();
-        }
-    });
-
-    syncBtn.addEventListener('click', async () => {
-        syncBtn.classList.add('syncing');
-        await fullSync();
-        syncBtn.classList.remove('syncing');
-        renderList();
-        renderCharts();
-    });
+    if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+            syncBtn.classList.add('syncing');
+            await fullSync();
+            syncBtn.classList.remove('syncing');
+            renderList();
+            renderCharts();
+        });
+    }
 
     onAuthChange(({ isLoggedIn: loggedIn, userInfo }) => {
         const loginWall = document.getElementById('login-wall');
         const appContainer = document.getElementById('app-container');
 
         if (loggedIn) {
-            // 登入成功：隱藏登入牆，顯示主程式
-            loginWall.style.display = 'none';
-            appContainer.style.display = 'block';
+            if (loginWall) loginWall.style.display = 'none';
+            if (appContainer) appContainer.style.display = 'block';
 
-            loginBtn.style.display = 'none';
-            avatarDiv.style.display = 'block';
-            syncBtn.style.display = 'flex';
-            settingsLoginBtn.textContent = '登出';
-            syncStatusText.textContent = `已登入：${userInfo?.name || userInfo?.email || ''}`;
+            if (loginBtn) loginBtn.style.display = 'none';
+            if (avatarDiv) avatarDiv.style.display = 'block';
+            if (syncBtn) syncBtn.style.display = 'flex';
+            if (settingsLoginBtn) settingsLoginBtn.textContent = '登出';
+            if (syncStatusText) syncStatusText.textContent = `已登入：${userInfo?.name || userInfo?.email || ''}`;
 
-            if (userInfo?.picture) {
+            if (userInfo?.picture && avatarImg) {
                 avatarImg.src = userInfo.picture;
             }
 
-            // 登入成功後，開啟頭像點擊登出
-            avatarDiv.onclick = logout; // 使用屬性賦值避免重複綁定
+            if (avatarDiv) avatarDiv.onclick = logout;
 
-            // 自動同步
             fullSync().then(() => {
                 renderList();
                 renderCharts();
@@ -128,16 +124,15 @@ function initAuthUI() {
 
             window.showToast('Google 登入成功！', 'success');
         } else {
-            // 未登入：顯示登入牆，隱藏主程式
-            loginWall.style.display = 'flex';
-            appContainer.style.display = 'none';
+            if (loginWall) loginWall.style.display = 'flex';
+            if (appContainer) appContainer.style.display = 'none';
 
-            loginBtn.style.display = 'flex';
-            avatarDiv.style.display = 'none';
-            syncBtn.style.display = 'none';
-            settingsLoginBtn.textContent = '登入';
-            syncStatusText.textContent = '尚未登入';
-            sheetUrlDiv.style.display = 'none';
+            if (loginBtn) loginBtn.style.display = 'flex';
+            if (avatarDiv) avatarDiv.style.display = 'none';
+            if (syncBtn) syncBtn.style.display = 'none';
+            if (settingsLoginBtn) settingsLoginBtn.textContent = '登入';
+            if (syncStatusText) syncStatusText.textContent = '尚未登入';
+            if (sheetUrlDiv) sheetUrlDiv.style.display = 'none';
         }
     });
 
