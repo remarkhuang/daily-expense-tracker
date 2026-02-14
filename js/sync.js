@@ -143,16 +143,16 @@ async function findOrCreateSpreadsheet() {
     return spreadsheetId;
 }
 
-// 將未同步的帳目上傳到 Sheets
+// 將未同步的帳目上傳或更新到 Sheets
 export async function syncToSheet() {
     if (!isLoggedIn()) return;
 
-    notifySyncListeners('syncing', '同步中...');
+    notifySyncListeners('syncing', '正在同步變更...');
 
     try {
         await findOrCreateSpreadsheet();
 
-        // 處理待刪除的帳目 (雲端刪除)
+        // 1. 處理待刪除的帳目 (雲端刪除)
         await handleCloudDeletions();
 
         const unsynced = getUnsyncedEntries();
@@ -161,30 +161,78 @@ export async function syncToSheet() {
             return;
         }
 
-        const rows = unsynced.map(e => [
-            e.id,
-            e.date,
-            e.type === 'income' ? '收入' : '支出',
-            e.category,
-            e.amount,
-            e.note,
-            e.createdAt,
-        ]);
-
-        await sheetsApi(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-            {
-                method: 'POST',
-                body: JSON.stringify({ values: rows }),
-            }
+        // 2. 取得雲端現有的所有 ID 及其列號
+        const result = await sheetsApi(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:A`
         );
+        const cloudIds = (result.values || []).map(row => row[0]);
+
+        const toUpdate = [];
+        const toAppend = [];
+
+        unsynced.forEach(entry => {
+            const rowIndex = cloudIds.indexOf(entry.id);
+            if (rowIndex !== -1) {
+                // 已存在，加入更新隊列 (rowIndex 是 0-based，加 1 才是 Excel 行號)
+                toUpdate.push({ entry, rowIndex: rowIndex + 1 });
+            } else {
+                // 不存在，追加
+                toAppend.push(entry);
+            }
+        });
+
+        // 3. 處理更新 (使用 batchUpdate 效率較低，這裡用單筆 PUT 或進階 batch 都可以，先確保正確性)
+        for (const item of toUpdate) {
+            await updateSingleRow(item.entry, item.rowIndex);
+        }
+
+        // 4. 處理追加
+        if (toAppend.length > 0) {
+            const rows = toAppend.map(e => [
+                e.id,
+                e.date,
+                e.type === 'income' ? '收入' : '支出',
+                e.category,
+                e.amount,
+                e.note,
+                e.createdAt,
+            ]);
+
+            await sheetsApi(
+                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+                {
+                    method: 'POST',
+                    body: JSON.stringify({ values: rows }),
+                }
+            );
+        }
 
         markAsSynced(unsynced.map(e => e.id));
-        notifySyncListeners('success', `已同步 ${unsynced.length} 筆`);
+        notifySyncListeners('success', `已同步 ${unsynced.length} 筆 (含更新)`);
     } catch (err) {
         console.error('[Sync] 同步失敗:', err);
         notifySyncListeners('error', '同步失敗: ' + err.message);
     }
+}
+
+// 更新單一列的輔助函式
+async function updateSingleRow(entry, rowNumber) {
+    const row = [
+        entry.id,
+        entry.date,
+        entry.type === 'income' ? '收入' : '支出',
+        entry.category,
+        entry.amount,
+        entry.note,
+        entry.createdAt,
+    ];
+    await sheetsApi(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A${rowNumber}:G${rowNumber}?valueInputOption=USER_ENTERED`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({ values: [row] }),
+        }
+    );
 }
 
 // 從 Sheets 拉取資料合併到本地
@@ -248,34 +296,10 @@ export async function fullSync() {
     await syncToSheet();
 }
 
-// 同步單筆新增的帳目
+// 同步單筆變更 (新增或編輯)
 export async function syncSingleEntry(entry) {
     if (!isLoggedIn()) return;
-
-    try {
-        await findOrCreateSpreadsheet();
-        const row = [
-            entry.id,
-            entry.date,
-            entry.type === 'income' ? '收入' : '支出',
-            entry.category,
-            entry.amount,
-            entry.note,
-            entry.createdAt,
-        ];
-
-        await sheetsApi(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-            {
-                method: 'POST',
-                body: JSON.stringify({ values: [row] }),
-            }
-        );
-
-        markAsSynced([entry.id]);
-    } catch (err) {
-        console.error('[Sync] 單筆同步失敗:', err);
-    }
+    return syncToSheet(); // 直接使用統一的同步邏輯最安全，避免邏輯分歧
 }
 // 處理雲端同步刪除
 async function handleCloudDeletions() {
