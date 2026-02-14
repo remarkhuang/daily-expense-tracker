@@ -58,6 +58,13 @@ export function deleteEntry(id) {
     saveEntries(filtered);
 }
 
+// 僅從本地移除，不記錄到待刪除清單 (用於雲端對齊)
+export function removeFromLocal(id) {
+    const entries = getAllEntries();
+    const filtered = entries.filter(e => e.id !== id);
+    saveEntries(filtered);
+}
+
 function addDeletedId(id) {
     const ids = getPendingDeletions();
     if (!ids.includes(id)) {

@@ -3,7 +3,7 @@
 // ============================================
 
 import { getAccessToken, isLoggedIn } from './auth.js';
-import { getAllEntries, getUnsyncedEntries, markAsSynced, mergeEntries, getPendingDeletions, clearPendingDeletions } from './store.js';
+import { getAllEntries, getUnsyncedEntries, markAsSynced, mergeEntries, getPendingDeletions, clearPendingDeletions, removeFromLocal } from './store.js';
 
 const SHEETS_API = 'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest';
 const SHEET_NAME = '帳目';
@@ -249,8 +249,27 @@ export async function syncFromSheet() {
         );
 
         const rows = result.values || [];
+
+        // --- 全量對齊邏輯 (Reconciliation) ---
+        const cloudIds = new Set(rows.map(row => row[0]));
+        const localEntries = getAllEntries();
+        let removedCount = 0;
+
+        localEntries.forEach(entry => {
+            // 如果本地標記為已同步，但在雲端找不到了，表示在 Sheets 端被手動刪除
+            if (entry.synced && !cloudIds.has(entry.id)) {
+                removeFromLocal(entry.id);
+                removedCount++;
+            }
+        });
+
+        if (removedCount > 0) {
+            console.log(`[Sync] 已從本地移除 ${removedCount} 筆在雲端不存在的帳目`);
+        }
+
         if (rows.length === 0) {
-            notifySyncListeners('idle', '雲端無資料');
+            notifySyncListeners('idle', removedCount > 0 ? '已同步雲端刪除' : '雲端無資料');
+            window.dispatchEvent(new CustomEvent('entries-changed'));
             return 0;
         }
 
@@ -281,7 +300,15 @@ export async function syncFromSheet() {
         });
 
         const added = mergeEntries(remoteEntries);
-        notifySyncListeners('success', added > 0 ? `已合併 ${added} 筆雲端資料` : '已是最新');
+
+        // 發送事件通知 UI 更新 (尤其是刪除後)
+        window.dispatchEvent(new CustomEvent('entries-changed'));
+
+        notifySyncListeners('success',
+            (added > 0 || removedCount > 0)
+                ? `同步完成 (新增 ${added}, 移除 ${removedCount})`
+                : '已是最新'
+        );
         return added;
     } catch (err) {
         console.error('[Sync] 拉取失敗:', err);
