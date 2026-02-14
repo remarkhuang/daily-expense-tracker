@@ -59,12 +59,11 @@ function parseText(text, msgId, now) {
 
   if (parts.length === 1) {
     amount = parseFloat(parts[0]);
-    note = "來自 Telegram";
+    note = "";
   } else {
     category = suggestCategory(parts[0]);
     amount = parseFloat(parts[1]);
     note = parts.slice(2).join(" ") || parts[0]; 
-    if (note === parts[0]) note = parts[0] + " (來自 Telegram)";
   }
 
   if (isNaN(amount)) return null;
