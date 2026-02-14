@@ -74,13 +74,16 @@ export function removeFromLocal(id) {
 
 function addDeletedId(id) {
     const ids = getPendingDeletions();
-    console.log(`[Store] addDeletedId: id=${id}, 目前清單長度=${ids.length}`);
-    if (!ids.includes(id)) {
-        ids.push(id);
+    const targetId = String(id).trim(); // 強制轉字串並去空白
+
+    console.log(`[Store] addDeletedId: 原始id=${id}, 處理後=${targetId}, 目前清單長度=${ids.length}`);
+
+    if (!ids.includes(targetId)) {
+        ids.push(targetId);
         localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(ids));
-        console.log(`[Store] addDeletedId: 已新增 id=${id}, 新清單長度=${ids.length}`);
+        console.log(`[Store] addDeletedId: 已新增 id=${targetId}, 新清單長度=${ids.length}`);
     } else {
-        console.log(`[Store] addDeletedId: id=${id} 已存在清單中，跳過`);
+        console.log(`[Store] addDeletedId: id=${targetId} 已存在清單中，跳過`);
     }
 }
 
