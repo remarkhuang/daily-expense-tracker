@@ -33,9 +33,17 @@ function doPost(e) {
     // 寫入試算表
     appendToSheet(result);
     
-    sendMessage(chatId, `✅ 記帳成功！\n日期：${result.date}\n分類：${result.category}\n金額：${result.amount}\n內容：${result.note}`);
+    // 發送成功訊息 (確保時區正確顯示)
+    const successMsg = `✅ 記帳成功！\n📅 日期：${result.date}\n🏷️ 分類：${result.category}\n💰 金額：$${result.amount}\n📝 內容：${result.note}`;
+    sendMessage(chatId, successMsg);
+
   } catch (err) {
-    // 錯誤回報 (可選)
+    // 如果發生錯誤且我們拿得到 chatId，嘗試回報錯誤訊息協助除錯
+    try {
+      const data = JSON.parse(e.postData.contents);
+      const chatId = data.message.chat.id;
+      sendMessage(chatId, "⚠️ 系統錯誤（可能 TOKEN 有誤）：" + err.toString());
+    } catch (inner) {}
   }
 }
 
@@ -55,7 +63,8 @@ function parseText(text) {
   const category = suggestCategory(note);
   const now = new Date();
   const dateStr = Utilities.formatDate(now, "GMT+8", "yyyy-MM-dd");
-  const createdAt = now.toISOString();
+  // 將建立時間改為 UTC+8 格式字串
+  const createdAt = Utilities.formatDate(now, "GMT+8", "yyyy-MM-dd HH:mm:ss");
   const id = "tg_" + Math.random().toString(36).substring(2, 9);
 
   return {
