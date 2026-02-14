@@ -11,6 +11,7 @@ const HEADER_ROW = ['ID', '日期', '類型', '分類', '金額', '備註', '建
 
 let spreadsheetId = null;
 const SHEET_ID_KEY = 'expense_tracker_sheet_id';
+const DEFAULT_SHEET_ID = '1o7KlfhiJqVpSvTjR_C3yavph-Z8Lsznpb-H42OET8AM';
 
 const syncListeners = [];
 
@@ -24,7 +25,7 @@ function notifySyncListeners(status, message) {
 
 export function getSpreadsheetId() {
     if (!spreadsheetId) {
-        spreadsheetId = localStorage.getItem(SHEET_ID_KEY);
+        spreadsheetId = localStorage.getItem(SHEET_ID_KEY) || DEFAULT_SHEET_ID;
     }
     return spreadsheetId;
 }
@@ -64,17 +65,23 @@ async function sheetsApi(url, options = {}) {
 
 // 尋找或建立「每日記帳」試算表
 async function findOrCreateSpreadsheet() {
-    // 先檢查本地紀錄
-    const savedId = localStorage.getItem(SHEET_ID_KEY);
+    // 先檢查本地紀錄或預設 ID
+    const savedId = localStorage.getItem(SHEET_ID_KEY) || DEFAULT_SHEET_ID;
     if (savedId) {
         try {
             // 確認試算表仍存在
             await sheetsApi(`https://sheets.googleapis.com/v4/spreadsheets/${savedId}?fields=spreadsheetId`);
             spreadsheetId = savedId;
+            if (!localStorage.getItem(SHEET_ID_KEY)) {
+                localStorage.setItem(SHEET_ID_KEY, savedId);
+            }
             return savedId;
         } catch (e) {
-            // 試算表不存在，清除紀錄
-            localStorage.removeItem(SHEET_ID_KEY);
+            // 如果是預設 ID 但不可存取，則繼續往後走（可能是第一次使用需建立或 ID 真的沒權限）
+            console.warn('[Sync] 無法存取試算表:', savedId);
+            if (savedId !== DEFAULT_SHEET_ID) {
+                localStorage.removeItem(SHEET_ID_KEY);
+            }
         }
     }
 
