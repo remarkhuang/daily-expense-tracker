@@ -68,12 +68,18 @@ function initAuthUI() {
     const sheetUrlDiv = document.getElementById('setting-sheet-url');
     const sheetLink = document.getElementById('sheet-link');
 
+    const loginBtnWall = document.getElementById('btn-login-wall');
+
     loginBtn.addEventListener('click', () => {
         if (isLoggedIn()) {
             logout();
         } else {
             login();
         }
+    });
+
+    loginBtnWall.addEventListener('click', () => {
+        login();
     });
 
     settingsLoginBtn.addEventListener('click', () => {
@@ -93,7 +99,14 @@ function initAuthUI() {
     });
 
     onAuthChange(({ isLoggedIn: loggedIn, userInfo }) => {
+        const loginWall = document.getElementById('login-wall');
+        const appContainer = document.getElementById('app-container');
+
         if (loggedIn) {
+            // 登入成功：隱藏登入牆，顯示主程式
+            loginWall.style.display = 'none';
+            appContainer.style.display = 'block';
+
             loginBtn.style.display = 'none';
             avatarDiv.style.display = 'block';
             syncBtn.style.display = 'flex';
@@ -105,7 +118,7 @@ function initAuthUI() {
             }
 
             // 登入成功後，開啟頭像點擊登出
-            avatarDiv.addEventListener('click', logout);
+            avatarDiv.onclick = logout; // 使用屬性賦值避免重複綁定
 
             // 自動同步
             fullSync().then(() => {
@@ -115,6 +128,10 @@ function initAuthUI() {
 
             window.showToast('Google 登入成功！', 'success');
         } else {
+            // 未登入：顯示登入牆，隱藏主程式
+            loginWall.style.display = 'flex';
+            appContainer.style.display = 'none';
+
             loginBtn.style.display = 'flex';
             avatarDiv.style.display = 'none';
             syncBtn.style.display = 'none';
