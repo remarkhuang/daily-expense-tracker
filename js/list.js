@@ -37,7 +37,17 @@ export function initList() {
     editCancel.addEventListener('click', closeEditModal);
 
     // 確認刪除 Modal
-    document.getElementById('confirm-no').addEventListener('click', closeConfirmModal);
+    const confirmYesBtn = document.getElementById('confirm-yes');
+    const confirmNoBtn = document.getElementById('confirm-no');
+
+    confirmNoBtn.addEventListener('click', closeConfirmModal);
+    confirmYesBtn.addEventListener('click', () => {
+        console.log('[List] 使用者點擊確認刪除 (Modal Yes)');
+        if (pendingConfirmCallback) {
+            pendingConfirmCallback();
+        }
+        closeConfirmModal();
+    });
 
     // 監聽資料變更
     window.addEventListener('entries-changed', renderList);
@@ -53,7 +63,7 @@ export function initList() {
             console.log(`[List] 偵測到刪除點擊 (Delegation)，ID: ${idToDelete}`);
 
             showConfirmModal('確定要刪除這筆帳目嗎？', () => {
-                console.log(`[List] 使用者確認刪除，執行 deleteEntry ID: ${idToDelete}`);
+                console.log(`[List] 執行刪除 callback, ID: ${idToDelete}`);
                 deleteEntry(idToDelete);
                 window.dispatchEvent(new CustomEvent('entries-changed'));
                 window.showToast('已刪除', 'info');
@@ -219,11 +229,7 @@ function showConfirmModal(message, callback) {
     document.getElementById('confirm-message').textContent = message;
     modal.style.display = 'flex';
     pendingConfirmCallback = callback;
-
-    document.getElementById('confirm-yes').onclick = () => {
-        closeConfirmModal();
-        if (pendingConfirmCallback) pendingConfirmCallback();
-    };
+    console.log('[List] Confirm Modal 已顯示');
 }
 
 function closeConfirmModal() {
