@@ -56,6 +56,9 @@ async function sheetsApi(url, options = {}) {
     });
 
     if (!res.ok) {
+        if (res.status === 401) {
+            throw new Error('登入認證已失效，請重新登入');
+        }
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message || `API 錯誤 ${res.status}`);
     }

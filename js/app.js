@@ -121,6 +121,16 @@ function initAuthUI() {
 
             if (avatarDiv) avatarDiv.onclick = logout;
 
+            // 登入後即顯示 ID 欄位 (不再等待同步成功)
+            const sid = getSpreadsheetId();
+            if (sid) {
+                if (sheetIdDiv) sheetIdDiv.style.display = 'flex';
+                if (sheetIdInput) sheetIdInput.value = sid;
+                if (sheetUrlDiv) sheetUrlDiv.style.display = 'flex';
+                const url = getSpreadsheetUrl();
+                if (sheetLink) sheetLink.href = url;
+            }
+
             fullSync().then(() => {
                 renderList();
                 renderCharts();
@@ -137,6 +147,7 @@ function initAuthUI() {
             if (settingsLoginBtn) settingsLoginBtn.textContent = '登入';
             if (syncStatusText) syncStatusText.textContent = '尚未登入';
             if (sheetUrlDiv) sheetUrlDiv.style.display = 'none';
+            if (sheetIdDiv) sheetIdDiv.style.display = 'none';
         }
     });
 
@@ -145,16 +156,24 @@ function initAuthUI() {
             syncBtn.classList.remove('syncing');
             const sid = id || getSpreadsheetId();
             if (sid) {
-                if (sheetUrlDiv) sheetUrlDiv.style.display = 'flex';
                 if (sheetIdDiv) sheetIdDiv.style.display = 'flex';
-                if (sheetIdInput) sheetIdInput.value = sid;
+                if (sheetIdInput) {
+                    // 只有當輸入框為空時才覆蓋，避免在使用中被覆寫
+                    if (!sheetIdInput.value) sheetIdInput.value = sid;
+                }
+                if (sheetUrlDiv) sheetUrlDiv.style.display = 'flex';
                 const url = getSpreadsheetUrl();
                 if (sheetLink) sheetLink.href = url;
             }
         }
         if (status === 'error') {
             syncBtn.classList.remove('syncing');
-            window.showToast(message, 'error');
+            // 如果是登入失效，則特殊提示
+            if (message.includes('credentials') || message.includes('登入')) {
+                window.showToast('登入已過期，請重新登入', 'warning');
+            } else {
+                window.showToast(message, 'error');
+            }
         }
         if (message && status !== 'error') {
             syncStatusText.textContent = message;
