@@ -259,6 +259,19 @@
                 <span class="setting-desc"><a id="sheet-link" href="#" target="_blank">開啟 Google Sheets</a></span>
               </div>
             </div>
+            <div class="setting-item" id="setting-spreadsheet-id"
+              style="display:none; flex-direction: column; align-items: flex-start; gap: 10px;">
+              <div class="setting-info">
+                <span class="setting-label">試算表 ID (Spreadsheet ID)</span>
+                <span class="setting-desc">用於 Telegram Bot 整合與多端同步</span>
+              </div>
+              <div style="display: flex; width: 100%; gap: 10px;">
+                <input type="text" id="spreadsheet-id-input" placeholder="尚未連結或輸入 ID"
+                  style="flex: 1; margin: 0; padding: 5px 10px; font-size: 12px; height: 32px;" />
+                <button id="btn-save-sheet-id" class="small-btn"
+                  style="padding: 5px 15px; font-size: 12px; margin: 0; height: 32px;">儲存</button>
+              </div>
+            </div>
           </div>
           <div class="settings-group">
             <h3>💰 月度預算</h3>
@@ -274,40 +287,6 @@
             </div>
             <button id="btn-save-budget" class="small-btn">儲存</button>
           </div>
-          <div class="settings-group">
-            <h3>📥 匯出資料</h3>
-            <div class="setting-item">
-              <div class="setting-info">
-                <span class="setting-label">匯出 Excel 檔案</span>
-                <span class="setting-desc">匯出所有帳目為 .xlsx</span>
-              </div>
-              <button id="btn-export-excel" class="small-btn">匯出</button>
-            </div>
-            <div class="export-options" id="export-options">
-              <select id="export-range">
-                <option value="all">全部資料</option>
-                <option value="month">本月</option>
-              </select>
-            </div>
-          </div>
-          <div class="settings-group">
-            <h3>🏷️ 分類管理</h3>
-            <div id="category-manager"></div>
-            <div class="add-category-form">
-              <input type="text" id="input-new-category-icon" placeholder="圖示" maxlength="2" class="icon-input" />
-              <input type="text" id="input-new-category-name" placeholder="分類名稱" />
-              <select id="input-new-category-type">
-                <option value="expense">支出</option>
-                <option value="income">收入</option>
-              </select>
-              <button id="btn-add-category" class="small-btn">新增</button>
-            </div>
-          </div>
-          <div class="settings-group">
-            <h3>ℹ️ 關於</h3>
-            <p class="about-text">每日記帳 v1.0 — PWA 離線記帳 + Google Sheets 雲端同步</p>
-          </div>
-        </div>
       </section>
     </main>
 

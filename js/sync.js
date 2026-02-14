@@ -29,6 +29,13 @@ export function getSpreadsheetId() {
     return spreadsheetId;
 }
 
+export function setSpreadsheetId(id) {
+    if (id) {
+        spreadsheetId = id;
+        localStorage.setItem(SHEET_ID_KEY, id);
+    }
+}
+
 export function getSpreadsheetUrl() {
     const id = getSpreadsheetId();
     return id ? `https://docs.google.com/spreadsheets/d/${id}` : null;
@@ -189,16 +196,31 @@ export async function syncFromSheet() {
             return 0;
         }
 
-        const remoteEntries = rows.map(row => ({
-            id: row[0],
-            date: row[1],
-            type: row[2] === '收入' ? 'income' : 'expense',
-            category: row[3],
-            amount: Number(row[4]),
-            note: row[5] || '',
-            createdAt: row[6] || new Date().toISOString(),
-            synced: true,
-        }));
+        // 解析資料 (適應可能的標題空格偏移)
+        const remoteEntries = rows.map(row => {
+            // 從截圖看，"金額" 標題前可能有一個空格，導致資料列產生偏移
+            // 我們優先嘗試 row[4]，如果 row[4] 是空的或非數字，而 row[5] 是數字，則取 row[5]
+            let amountVal = row[4];
+            let noteVal = row[5];
+            let createdAtVal = row[6];
+
+            if ((amountVal === undefined || amountVal === '') && row[5] !== undefined) {
+                amountVal = row[5];
+                noteVal = row[6];
+                createdAtVal = row[7];
+            }
+
+            return {
+                id: row[0],
+                date: row[1],
+                type: row[2] === '收入' ? 'income' : 'expense',
+                category: row[3],
+                amount: parseFloat(amountVal) || 0,
+                note: noteVal || '',
+                createdAt: createdAtVal || new Date().toISOString(),
+                synced: true,
+            };
+        });
 
         const added = mergeEntries(remoteEntries);
         notifySyncListeners('success', added > 0 ? `已合併 ${added} 筆雲端資料` : '已是最新');

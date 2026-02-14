@@ -8,7 +8,7 @@ import { initCharts, renderCharts } from './charts.js';
 import { initExport } from './export.js';
 import { initBudget } from './budget.js';
 import { initAuth, login, logout, onAuthChange, isLoggedIn } from './auth.js';
-import { fullSync, onSyncChange, getSpreadsheetUrl } from './sync.js';
+import { fullSync, onSyncChange, getSpreadsheetUrl, getSpreadsheetId, setSpreadsheetId } from './sync.js';
 import { initVoice } from './voice.js';
 import { getCategories, addCategory, removeCategory, getCategoriesByType } from './categories.js';
 
@@ -67,6 +67,9 @@ function initAuthUI() {
     const syncStatusText = document.getElementById('sync-status-text');
     const sheetUrlDiv = document.getElementById('setting-sheet-url');
     const sheetLink = document.getElementById('sheet-link');
+    const sheetIdDiv = document.getElementById('setting-spreadsheet-id');
+    const sheetIdInput = document.getElementById('spreadsheet-id-input');
+    const saveSheetIdBtn = document.getElementById('btn-save-sheet-id');
     const loginBtnWall = document.getElementById('btn-login-wall');
 
     if (loginBtn) {
@@ -136,13 +139,16 @@ function initAuthUI() {
         }
     });
 
-    onSyncChange(({ status, message, spreadsheetId }) => {
+    onSyncChange(({ status, message, spreadsheetId: id }) => {
         if (status === 'success' || status === 'idle') {
             syncBtn.classList.remove('syncing');
-            if (spreadsheetId) {
-                sheetUrlDiv.style.display = 'flex';
+            const sid = id || getSpreadsheetId();
+            if (sid) {
+                if (sheetUrlDiv) sheetUrlDiv.style.display = 'flex';
+                if (sheetIdDiv) sheetIdDiv.style.display = 'flex';
+                if (sheetIdInput) sheetIdInput.value = sid;
                 const url = getSpreadsheetUrl();
-                sheetLink.href = url;
+                if (sheetLink) sheetLink.href = url;
             }
         }
         if (status === 'error') {
@@ -153,6 +159,22 @@ function initAuthUI() {
             syncStatusText.textContent = message;
         }
     });
+
+    if (saveSheetIdBtn && sheetIdInput) {
+        saveSheetIdBtn.addEventListener('click', () => {
+            const newId = sheetIdInput.value.trim();
+            if (!newId) {
+                window.showToast('請輸入有效的試算表 ID', 'warning');
+                return;
+            }
+            setSpreadsheetId(newId);
+            window.showToast('試算表 ID 已手動更新！將重新同步...', 'success');
+            fullSync().then(() => {
+                renderList();
+                renderCharts();
+            });
+        });
+    }
 }
 
 // ---- 分類管理 UI ----
