@@ -80,8 +80,14 @@ async function findOrCreateSpreadsheet() {
             }
             return savedId;
         } catch (e) {
-            // 如果是預設 ID 但不可存取，則繼續往後走（可能是第一次使用需建立或 ID 真的沒權限）
-            console.warn('[Sync] 無法存取試算表:', savedId);
+            // 如果是 401 (token 過期)，不要清除 sheet ID，因為 ID 本身沒問題
+            if (e.message.includes('401') || e.message.includes('認證') || e.message.includes('credentials')) {
+                console.warn('[Sync] Token 可能過期，但保留 spreadsheet ID:', savedId);
+                spreadsheetId = savedId; // 仍然設定 ID，讓後續流程可以嘗試
+                throw e; // 重新拋出讓上層處理
+            }
+            // 其他錯誤（如 404 找不到、403 無權限）
+            console.warn('[Sync] 無法存取試算表:', savedId, e.message);
             if (savedId !== DEFAULT_SHEET_ID) {
                 localStorage.removeItem(SHEET_ID_KEY);
             }
@@ -155,8 +161,12 @@ export async function syncToSheet() {
     try {
         await findOrCreateSpreadsheet();
 
-        // 1. 處理待刪除的帳目 (雲端刪除)
-        await handleCloudDeletions();
+        // 1. 處理待刪除的帳目 (雲端刪除) — 錯誤不中斷整體同步
+        try {
+            await handleCloudDeletions();
+        } catch (delErr) {
+            console.error('[Sync] 雲端刪除失敗，但繼續同步其他變更:', delErr);
+        }
 
         const unsynced = getUnsyncedEntries();
         if (unsynced.length === 0) {
@@ -166,7 +176,7 @@ export async function syncToSheet() {
 
         // 2. 取得雲端現有的所有 ID 及其列號
         const result = await sheetsApi(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:A`
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}!A:A`
         );
         const cloudIds = (result.values || []).map(row => row[0]);
 
@@ -202,7 +212,7 @@ export async function syncToSheet() {
             ]);
 
             await sheetsApi(
-                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
                 {
                     method: 'POST',
                     body: JSON.stringify({ values: rows }),
@@ -230,7 +240,7 @@ async function updateSingleRow(entry, rowNumber) {
         entry.createdAt,
     ];
     await sheetsApi(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A${rowNumber}:G${rowNumber}?valueInputOption=USER_ENTERED`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}!A${rowNumber}:G${rowNumber}?valueInputOption=USER_ENTERED`,
         {
             method: 'PUT',
             body: JSON.stringify({ values: [row] }),
@@ -248,7 +258,7 @@ export async function syncFromSheet() {
         await findOrCreateSpreadsheet();
 
         const result = await sheetsApi(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A2:G10000`
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}!A2:G10000`
         );
 
         const rows = result.values || [];
@@ -341,51 +351,89 @@ async function handleCloudDeletions() {
     const deletedIds = getPendingDeletions();
     if (deletedIds.length === 0) return;
 
-    console.log('[Sync] 檢查待刪除項:', deletedIds);
+    console.log('[Sync] ===== 開始雲端刪除流程 =====');
+    console.log('[Sync] 待刪除 ID 清單:', JSON.stringify(deletedIds));
+    console.log('[Sync] 使用的 spreadsheetId:', spreadsheetId);
+
+    if (!spreadsheetId) {
+        console.error('[Sync] spreadsheetId 為空，無法執行雲端刪除');
+        return;
+    }
 
     try {
         // 1. 取得試算表資訊以獲取正確的頁籤 ID (sheetId)
-        const ssInfo = await sheetsApi(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`);
-        const targetSheet = ssInfo.sheets.find(s => s.properties.title === SHEET_NAME) || ssInfo.sheets[0];
-        const realSheetId = targetSheet.properties.sheetId;
+        console.log('[Sync] 步驟 1: 取得試算表資訊...');
+        const ssInfo = await sheetsApi(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`);
+        const targetSheet = ssInfo.sheets.find(s => s.properties.title === SHEET_NAME);
 
-        // 2. 抓取雲端的 A 欄 (ID) 以確認列號
-        const result = await sheetsApi(
-            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${SHEET_NAME}!A:A`
-        );
-        const rows = result.values || [];
-        if (rows.length === 0) {
-            console.warn('[Sync] 雲端無內容，無法比對刪除');
+        if (!targetSheet) {
+            console.error(`[Sync] 找不到名為「${SHEET_NAME}」的頁籤，可用頁籤:`, ssInfo.sheets.map(s => s.properties.title));
             return;
         }
 
+        const realSheetId = targetSheet.properties.sheetId;
+        console.log('[Sync] 頁籤 sheetId:', realSheetId, '頁籤名稱:', targetSheet.properties.title);
+
+        // 2. 抓取雲端的 A 欄 (ID) 以確認列號
+        console.log('[Sync] 步驟 2: 讀取雲端 A 欄...');
+        const result = await sheetsApi(
+            `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}!A:A`
+        );
+        const rows = result.values || [];
+        console.log('[Sync] 雲端共有', rows.length, '列 (含表頭)');
+
+        if (rows.length === 0) {
+            console.warn('[Sync] 雲端無任何內容，清除待刪除清單');
+            clearPendingDeletions(deletedIds);
+            return;
+        }
+
+        // 列出前幾個 ID 方便除錯
+        console.log('[Sync] 雲端前 5 筆 ID:', rows.slice(0, 5).map(r => JSON.stringify(r[0])));
+
         // 3. 找出待刪除 ID 對應的 0-indexed 列號
         const indicesToDelete = [];
+        const notFoundIds = [];
+
         deletedIds.forEach(id => {
             const targetId = String(id).trim();
-            const rowIndex = rows.findIndex(row => String(row[0] || '').trim() === targetId);
+            let found = false;
 
-            if (rowIndex !== -1) {
-                // 保護表頭：不允許刪除第 0 列 (如果是表頭文字)
-                if (rowIndex === 0 && rows[0][0] === 'ID') {
-                    console.warn('[Sync] 嘗試刪除表頭列，已忽略');
-                } else {
-                    indicesToDelete.push(rowIndex);
+            for (let i = 0; i < rows.length; i++) {
+                const cellValue = String(rows[i][0] || '').trim();
+                if (cellValue === targetId) {
+                    // 保護表頭
+                    if (i === 0 && (cellValue === 'ID' || cellValue === 'id')) {
+                        console.warn('[Sync] 跳過表頭列');
+                    } else {
+                        indicesToDelete.push(i);
+                        console.log(`[Sync] ID「${targetId}」找到在第 ${i} 列 (0-indexed)`);
+                    }
+                    found = true;
+                    break;
                 }
-            } else {
-                console.log(`[Sync] ID ${id} 在雲端未找到，可能已刪除或 ID 格式不匹配`);
+            }
+
+            if (!found) {
+                notFoundIds.push(targetId);
+                console.log(`[Sync] ID「${targetId}」在雲端未找到`);
             }
         });
 
+        // 清除已不在雲端的 ID（不需要再追蹤了）
+        if (notFoundIds.length > 0) {
+            console.log('[Sync] 以下 ID 在雲端已不存在，直接清除:', notFoundIds);
+            clearPendingDeletions(notFoundIds);
+        }
+
         if (indicesToDelete.length === 0) {
-            console.log('[Sync] 無需在雲端執行的刪除動作');
-            clearPendingDeletions(deletedIds);
+            console.log('[Sync] 沒有需要在雲端刪除的列');
             return;
         }
 
         // 4. 排序 (由後往前刪，以免列號偏移)
         indicesToDelete.sort((a, b) => b - a);
-        console.log('[Sync] 即將刪除的列號:', indicesToDelete);
+        console.log('[Sync] 步驟 4: 即將刪除的列號 (0-indexed, 由後往前):', indicesToDelete);
 
         // 5. 發送批次更新請求
         const requests = indicesToDelete.map(index => ({
@@ -399,7 +447,9 @@ async function handleCloudDeletions() {
             }
         }));
 
-        await sheetsApi(
+        console.log('[Sync] 步驟 5: 發送 batchUpdate 請求...', JSON.stringify(requests));
+
+        const batchResult = await sheetsApi(
             `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
             {
                 method: 'POST',
@@ -407,11 +457,20 @@ async function handleCloudDeletions() {
             }
         );
 
-        // 6. 清除本地紀錄
-        clearPendingDeletions(deletedIds);
-        console.log(`[Sync] 成功同步刪除 ${indicesToDelete.length} 筆資料`);
+        console.log('[Sync] batchUpdate 回應:', JSON.stringify(batchResult));
+
+        // 6. 清除已成功刪除的 ID
+        const successIds = deletedIds.filter(id => {
+            const targetId = String(id).trim();
+            return !notFoundIds.includes(targetId);
+        });
+        clearPendingDeletions(successIds);
+        console.log(`[Sync] ✅ 成功同步刪除 ${indicesToDelete.length} 筆資料`);
 
     } catch (err) {
-        console.error('[Sync] 雲端刪除程序失敗:', err);
+        console.error('[Sync] ❌ 雲端刪除程序失敗:', err.message);
+        console.error('[Sync] 錯誤詳情:', err);
+        // 不清除 pendingDeletions，讓下次同步時可以重試
+        throw err; // 重新拋出讓上層知道
     }
 }

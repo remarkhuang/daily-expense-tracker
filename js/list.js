@@ -137,7 +137,12 @@ export function renderList() {
 
                 // 如果已登入，嘗試同步刪除到雲端
                 if (isLoggedIn()) {
-                    syncToSheet();
+                    syncToSheet().then(() => {
+                        console.log('[List] 雲端刪除同步完成');
+                    }).catch(err => {
+                        console.error('[List] 雲端刪除同步失敗:', err);
+                        window.showToast('雲端同步失敗，下次同步時將重試', 'warning');
+                    });
                 }
             });
         });
