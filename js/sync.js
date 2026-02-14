@@ -254,15 +254,20 @@ export async function syncFromSheet() {
         const rows = result.values || [];
 
         // --- 全量對齊邏輯 (Reconciliation) ---
-        const cloudIds = new Set(rows.map(row => row[0]));
+        // 取得所有 ID (含去除空白處理)
+        const cloudIds = new Set(rows.map(row => String(row[0] || '').trim()));
         const localEntries = getAllEntries();
         let removedCount = 0;
 
+        console.log('[Sync] 雲端現有 ID 數:', cloudIds.size);
+
         localEntries.forEach(entry => {
             // 如果本地標記為已同步，但在雲端找不到了，表示在 Sheets 端被手動刪除
-            if (entry.synced && !cloudIds.has(entry.id)) {
+            // 注意：這裡要排除剛新增還沒同步的 (synced: false)
+            if (entry.synced && !cloudIds.has(String(entry.id).trim())) {
                 removeFromLocal(entry.id);
                 removedCount++;
+                console.log(`[Sync] 帳目 ${entry.id} 已在雲端消失，從本地移除`);
             }
         });
 
@@ -357,11 +362,18 @@ async function handleCloudDeletions() {
         // 3. 找出待刪除 ID 對應的 0-indexed 列號
         const indicesToDelete = [];
         deletedIds.forEach(id => {
-            const rowIndex = rows.findIndex(row => row[0] === id);
+            const targetId = String(id).trim();
+            const rowIndex = rows.findIndex(row => String(row[0] || '').trim() === targetId);
+
             if (rowIndex !== -1) {
-                indicesToDelete.push(rowIndex);
+                // 保護表頭：不允許刪除第 0 列 (如果是表頭文字)
+                if (rowIndex === 0 && rows[0][0] === 'ID') {
+                    console.warn('[Sync] 嘗試刪除表頭列，已忽略');
+                } else {
+                    indicesToDelete.push(rowIndex);
+                }
             } else {
-                console.log(`[Sync] ID ${id} 在雲端未找到，可能已刪除`);
+                console.log(`[Sync] ID ${id} 在雲端未找到，可能已刪除或 ID 格式不匹配`);
             }
         });
 
