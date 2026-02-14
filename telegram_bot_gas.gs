@@ -13,6 +13,14 @@ function doPost(e) {
     if (!data.message || !data.message.text) return;
 
     const chatId = data.message.chat.id;
+    
+    // 處理語音訊息
+    if (data.message.voice) {
+      sendMessage(chatId, "🎤 收到語音！不過目前 GAS 機器人還在學習聽力，請先用【打字】方式記帳（例如：午餐 150），或在 PWA 網頁版中使用語音記帳功能喔！");
+      return;
+    }
+
+    if (!data.message.text) return;
     const text = data.message.text;
 
     // 解析文字 (例如: "午餐 150" 或 "發票 1201.23")
