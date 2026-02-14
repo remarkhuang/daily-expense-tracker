@@ -80,6 +80,7 @@ function initAuthUI() {
 
     if (loginBtnWall) {
         loginBtnWall.addEventListener('click', () => {
+            console.log('[App] Login Wall button clicked');
             login();
         });
     }
@@ -167,13 +168,22 @@ function initAuthUI() {
                 window.showToast('請輸入有效的試算表 ID', 'warning');
                 return;
             }
-            setSpreadsheetId(newId);
-            window.showToast('試算表 ID 已手動更新！將重新同步...', 'success');
-            fullSync().then(() => {
-                renderList();
-                renderCharts();
-            });
+            try {
+                setSpreadsheetId(newId);
+                window.showToast('試算表 ID 已手動更新！將重新同步...', 'success');
+                fullSync().then(() => {
+                    renderList();
+                    renderCharts();
+                }).catch(err => {
+                    console.error('[App] 同步失敗:', err);
+                    window.showToast('同步失敗: ' + err.message, 'error');
+                });
+            } catch (err) {
+                console.error('[App] 設定 ID 失敗:', err);
+            }
         });
+    } else {
+        console.warn('[App] 找不到 ID 相關元素:', { saveSheetIdBtn, sheetIdInput });
     }
 }
 
