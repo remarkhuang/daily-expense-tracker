@@ -267,17 +267,27 @@ export async function syncFromSheet() {
         // 取得所有 ID (含去除空白處理)
         const cloudIds = new Set(rows.map(row => String(row[0] || '').trim()));
         const localEntries = getAllEntries();
+        const pendingDelIds = new Set(getPendingDeletions().map(id => String(id).trim()));
         let removedCount = 0;
 
         console.log('[Sync] 雲端現有 ID 數:', cloudIds.size);
+        console.log('[Sync] 本地現有帳目數:', localEntries.length);
+        console.log('[Sync] 待刪除 ID 數:', pendingDelIds.size);
 
         localEntries.forEach(entry => {
+            const localId = String(entry.id).trim();
+
+            // 跳過正在等待雲端刪除的帳目（不要把它們從本地重新加回來）
+            if (pendingDelIds.has(localId)) {
+                console.log(`[Sync] 帳目 ${localId} 在待刪除清單中，跳過對齊`);
+                return;
+            }
+
             // 如果本地標記為已同步，但在雲端找不到了，表示在 Sheets 端被手動刪除
-            // 注意：這裡要排除剛新增還沒同步的 (synced: false)
-            if (entry.synced && !cloudIds.has(String(entry.id).trim())) {
+            if (entry.synced && !cloudIds.has(localId)) {
                 removeFromLocal(entry.id);
                 removedCount++;
-                console.log(`[Sync] 帳目 ${entry.id} 已在雲端消失，從本地移除`);
+                console.log(`[Sync] 帳目 ${localId} 已在雲端消失，從本地移除`);
             }
         });
 

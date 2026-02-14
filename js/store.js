@@ -49,10 +49,11 @@ export function deleteEntry(id) {
     const entryToDelete = entries.find(e => e.id === id);
     if (!entryToDelete) return;
 
-    // 如果是已經同步過的資料，記錄其 ID 以便後續在雲端刪除
-    if (entryToDelete.synced) {
-        addDeletedId(id);
-    }
+    // 無論同步狀態都記錄到待刪除清單
+    // 因為即使 synced=false（例如剛編輯過），雲端可能仍有舊版本
+    // handleCloudDeletions 會自動忽略雲端不存在的 ID
+    addDeletedId(id);
+    console.log(`[Store] 刪除帳目 ${id}, synced=${entryToDelete.synced}, 已加入待刪除清單`);
 
     const filtered = entries.filter(e => e.id !== id);
     saveEntries(filtered);
@@ -132,13 +133,23 @@ export function markAsSynced(ids) {
 export function mergeEntries(remoteEntries) {
     const local = getAllEntries();
     const localIds = new Set(local.map(e => e.id));
+    const pendingDelIds = new Set(getPendingDeletions().map(id => String(id).trim()));
     let added = 0;
+    let skippedDel = 0;
     remoteEntries.forEach(re => {
+        // 跳過正在等待雲端刪除的帳目（使用者已在本地刪除，不要再拉回來）
+        if (pendingDelIds.has(String(re.id).trim())) {
+            skippedDel++;
+            return;
+        }
         if (!localIds.has(re.id)) {
             local.push({ ...re, synced: true });
             added++;
         }
     });
+    if (skippedDel > 0) {
+        console.log(`[Store] mergeEntries: 跳過 ${skippedDel} 筆待刪除帳目`);
+    }
     if (added > 0) {
         saveEntries(local);
     }
