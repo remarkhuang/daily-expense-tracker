@@ -2,7 +2,7 @@
 // auth.js — Google OAuth (GIS) 認證
 // ============================================
 
-const CLIENT_ID = ''; // 使用者需填入自己的 Client ID
+const CLIENT_ID = '391692345155-ssvcauh6mqisthbcb32scokua5nn7g16.apps.googleusercontent.com'; // 使用者需填入自己的 Client ID
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
 let tokenClient = null;
