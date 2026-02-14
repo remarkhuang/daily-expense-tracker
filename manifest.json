@@ -1,0 +1,24 @@
+{
+    "name": "每日記帳",
+    "short_name": "記帳",
+    "description": "每日記帳工具 — 語音記帳、圖表分析、Google Sheets 雲端同步",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0f0f23",
+    "theme_color": "#0f0f23",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/icons/icon-192.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-512.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}
