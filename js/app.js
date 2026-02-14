@@ -2,7 +2,7 @@
 // app.js — 應用程式進入點、路由、全域工具
 // ============================================
 
-import { initForm, refreshFormCategories } from './form.js';
+import { initForm, refreshFormCategories, setTodayDate } from './form.js';
 import { initList, renderList } from './list.js';
 import { initCharts, renderCharts } from './charts.js';
 import { initExport } from './export.js';
@@ -43,6 +43,10 @@ function initRouter() {
                 if (p.id === `page-${targetPage}`) {
                     p.classList.add('active');
 
+                    // 切換到記帳頁時重新整理日期 (在地時間)
+                    if (targetPage === 'add') {
+                        setTodayDate();
+                    }
                     // 切換到圖表頁時重新渲染
                     if (targetPage === 'charts') {
                         renderCharts();

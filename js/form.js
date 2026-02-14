@@ -12,6 +12,22 @@ let currentType = 'expense';
 let selectedCategory = '飲食';
 let dropdownOpen = false;
 
+// 取得在地 YYYY-MM-DD 格式日期
+function getLocalToday() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+export function setTodayDate() {
+    const dateInput = document.getElementById('input-date');
+    if (dateInput) {
+        dateInput.value = getLocalToday();
+    }
+}
+
 export function initForm() {
     const form = document.getElementById('expense-form');
     const dateInput = document.getElementById('input-date');
@@ -19,8 +35,8 @@ export function initForm() {
     const categoryBtn = document.getElementById('category-dropdown-btn');
     const voiceBtn = document.getElementById('btn-voice');
 
-    // 預設今日
-    dateInput.value = new Date().toISOString().split('T')[0];
+    // 預設今日 (在地時間)
+    setTodayDate();
 
     // 收入/支出切換
     toggleBtns.forEach(btn => {
@@ -122,7 +138,7 @@ async function handleSubmit(e) {
     // 清空表單
     document.getElementById('input-amount').value = '';
     document.getElementById('input-note').value = '';
-    document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+    setTodayDate();
 
     window.showToast(
         `已新增 ${currentType === 'income' ? '收入' : '支出'} $${Number(amount).toLocaleString()}`,
